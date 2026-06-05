@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cron expression tester</title>
+<meta name="description" content="Validate a 5-field POSIX cron expression and preview the next five fire times. Plain-English description, per-field breakdown, presets.">
+<link rel="canonical" href="https://truffle.ghostwright.dev/public/tools/cron/">
+<link rel="icon" type="image/png" sizes="32x32" href="/public/_assets/favicon-32.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="cron expression tester">
+<meta property="og:description" content="Paste a 5-field cron expression. See whether it parses, what it means, and when it fires next.">
+<meta property="og:url" content="https://truffle.ghostwright.dev/public/tools/cron/">
+<meta name="twitter:card" content="summary">
+
+<style>
+:root {
+  --paper: #f6f1e6;
+  --paper-raised: #fbf7ec;
+  --ink: #1c1814;
+  --ink-soft: #2e2822;
+  --quiet: #6b6157;
+  --rule: #e0d6c0;
+  --rule-soft: #ebe2cf;
+  --link: #7a4f1a;
+  --accent: #a57729;
+  --accent-bright: #c39040;
+  --code-bg: #ece3cc;
+  --code-ink: #2e2822;
+  --ok: #4f7a2e;
+  --warn: #a57729;
+  --over: #a83a25;
+  --font-body: "Iowan Old Style", "Palatino Linotype", Palatino, "URW Palladio L", "Book Antiqua", Georgia, serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #171310;
+    --paper-raised: #1e1814;
+    --ink: #f0e9d9;
+    --ink-soft: #e0d9c6;
+    --quiet: #9c9082;
+    --rule: #2e2820;
+    --rule-soft: #26211b;
+    --link: #d4a259;
+    --accent: #d4a259;
+    --accent-bright: #e4b574;
+    --code-bg: #201a15;
+    --code-ink: #e0d9c6;
+    --ok: #95c963;
+    --warn: #d4a259;
+    --over: #e07a5f;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font: 17px/1.6 var(--font-body);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+main {
+  max-width: 44rem;
+  padding: 2.5rem 1.5rem 4rem;
+  margin: 0 auto;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  margin: 0 0 0.7rem;
+}
+.eyebrow a {
+  color: var(--accent);
+  border-bottom: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
+  text-decoration: none;
+}
+
+h1 {
+  font-family: var(--font-mono);
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.5rem;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.lede {
+  font-size: 1.02rem;
+  color: var(--ink-soft);
+  margin: 0 0 2rem;
+  max-width: 36rem;
+}
+
+h2 {
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--quiet);
+  margin: 2.2rem 0 0.9rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+p { margin: 0 0 1rem; }
+
+a {
+  color: var(--link);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in oklab, var(--link) 30%, transparent);
+}
+a:hover { border-bottom-color: var(--link); }
+
+label.field-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--quiet);
+  margin: 0 0 0.5rem;
+}
+
+#expr {
+  width: 100%;
+  padding: 0.85rem 0.95rem;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  line-height: 1.4;
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  -webkit-appearance: none;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+#expr:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+#expr.invalid {
+  border-color: var(--over);
+  outline-color: var(--over);
+}
+
+.result {
+  margin: 1.6rem 0 0;
+  padding: 1.1rem 1.2rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+.status {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+}
+.status.ok { color: var(--ok); }
+.status.over { color: var(--over); }
+
+.summary {
+  font-family: var(--font-display);
+  font-size: 1.18rem;
+  line-height: 1.4;
+  margin: 0 0 0.6rem;
+  color: var(--ink);
+}
+.summary em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.error-detail {
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  color: var(--over);
+  margin: 0 0 0.3rem;
+  background: color-mix(in oklab, var(--over) 8%, transparent);
+  padding: 0.5rem 0.7rem;
+  border-radius: 4px;
+  border: 1px solid color-mix(in oklab, var(--over) 25%, transparent);
+}
+
+table.fields {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  margin: 0.6rem 0 0;
+}
+table.fields th, table.fields td {
+  text-align: left;
+  padding: 0.42rem 0.55rem;
+  border-bottom: 1px solid var(--rule-soft);
+  font-variant-numeric: tabular-nums;
+  vertical-align: top;
+}
+table.fields th {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--quiet);
+  font-weight: 600;
+  border-bottom: 1px solid var(--rule);
+}
+table.fields td.field-name { color: var(--quiet); white-space: nowrap; }
+table.fields td.field-raw {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+table.fields td.field-meaning { color: var(--ink-soft); }
+
+ol.fires {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0 0;
+  font-variant-numeric: tabular-nums;
+}
+ol.fires li {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: 0.6rem;
+  padding: 0.34rem 0;
+  border-bottom: 1px solid var(--rule-soft);
+  align-items: baseline;
+}
+ol.fires li:last-child { border-bottom: 0; }
+ol.fires li .idx {
+  color: var(--quiet);
+  font-size: 0.74rem;
+  text-align: right;
+}
+ol.fires li .iso { color: var(--ink); }
+ol.fires li .rel { color: var(--quiet); font-size: 0.78rem; margin-left: 0.4rem; }
+
+.tz-note {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--quiet);
+  margin: 0.6rem 0 0;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.9rem 0 0;
+}
+.presets button {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.32rem 0.65rem;
+  cursor: pointer;
+  -webkit-appearance: none;
+  letter-spacing: 0.02em;
+}
+.presets button:hover { border-color: var(--accent); color: var(--accent); }
+.presets button:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.preset-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--quiet);
+  margin: 1.6rem 0 0;
+}
+
+table.reference {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  margin: 0;
+}
+table.reference th, table.reference td {
+  text-align: left;
+  padding: 0.42rem 0.55rem;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+}
+table.reference th {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--quiet);
+  font-weight: 600;
+  border-bottom: 1px solid var(--rule);
+}
+table.reference td:first-child { color: var(--accent); font-weight: 600; white-space: nowrap; }
+table.reference td:nth-child(2) { color: var(--ink-soft); }
+table.reference td:nth-child(3) { color: var(--quiet); font-size: 0.78rem; }
+
+code, pre {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.1rem 0.32rem;
+  border-radius: 3px;
+}
+
+footer.colophon {
+  margin: 4rem 0 0;
+  padding: 1.2rem 0 0;
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--quiet);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.4rem;
+  justify-content: space-between;
+}
+footer.colophon a {
+  color: var(--quiet);
+  border-bottom-color: color-mix(in oklab, var(--quiet) 30%, transparent);
+}
+footer.colophon a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+@media (max-width: 480px) {
+  main { padding: 1.8rem 1rem 3rem; }
+  #expr { font-size: 0.95rem; }
+  .summary { font-size: 1.04rem; }
+  ol.fires { font-size: 0.82rem; }
+  table.fields, table.reference { font-size: 0.78rem; }
+}
+</style>
+</head>
+<body>
+
+<main>
+
+<p class="eyebrow"><a href="/public/tools/">/public/tools/</a></p>
+<h1>cron expression tester</h1>
+<p class="lede">Paste a 5-field POSIX cron expression. See whether it parses, what it means in English, and when it fires next.</p>
+
+<label class="field-label" for="expr">expression</label>
+<input id="expr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autofocus value="0 9 * * 1-5">
+
+<span class="preset-label">presets</span>
+<div class="presets" id="presets">
+  <button type="button" data-expr="* * * * *">every minute</button>
+  <button type="button" data-expr="*/5 * * * *">every 5 min</button>
+  <button type="button" data-expr="0 * * * *">hourly</button>
+  <button type="button" data-expr="0 9 * * *">daily 9am</button>
+  <button type="button" data-expr="0 9 * * 1-5">weekdays 9am</button>
+  <button type="button" data-expr="0 0 * * 0">weekly Sunday</button>
+  <button type="button" data-expr="0 0 1 * *">monthly 1st</button>
+  <button type="button" data-expr="13 16 * * *">agentlang daily</button>
+  <button type="button" data-expr="0 17 * * 5">Friday 5pm</button>
+  <button type="button" data-expr="*/30 * * * *">every 30 min</button>
+</div>
+
+<section class="result" id="result" aria-live="polite">
+  <p class="status ok" id="status">valid</p>
+  <p class="summary" id="summary">Every weekday at 09:00 UTC.</p>
+  <div id="errorBox" hidden></div>
+
+  <h2 style="margin-top: 1.6rem;">Fields</h2>
+  <table class="fields">
+    <thead>
+      <tr><th>position</th><th>raw</th><th>meaning</th></tr>
+    </thead>
+    <tbody id="fieldsBody"></tbody>
+  </table>
+
+  <h2 style="margin-top: 1.6rem;">Next five fires</h2>
+  <ol class="fires" id="fires"></ol>
+  <p class="tz-note" id="tzNote">UTC. Your local zone is <span id="tz">?</span>.</p>
+</section>
+
+<h2>Field reference</h2>
+<table class="reference">
+  <thead>
+    <tr><th>position</th><th>range</th><th>notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>minute</td><td>0&ndash;59</td><td></td></tr>
+    <tr><td>hour</td><td>0&ndash;23</td><td>24-hour clock</td></tr>
+    <tr><td>day-of-month</td><td>1&ndash;31</td><td></td></tr>
+    <tr><td>month</td><td>1&ndash;12 or JAN&ndash;DEC</td><td>names case-insensitive</td></tr>
+    <tr><td>day-of-week</td><td>0&ndash;6 or SUN&ndash;SAT</td><td>Sunday = 0; 7 is also accepted for Sunday</td></tr>
+  </tbody>
+</table>
+
+<h2>Operators</h2>
+<table class="reference">
+  <tbody>
+    <tr><td><code>*</code></td><td>every value in the field's range</td><td></td></tr>
+    <tr><td><code>5</code></td><td>specifically the value 5</td><td></td></tr>
+    <tr><td><code>1-5</code></td><td>range, inclusive on both ends</td><td></td></tr>
+    <tr><td><code>1,3,5</code></td><td>list of values</td><td></td></tr>
+    <tr><td><code>*/15</code></td><td>step from the full range (0, 15, 30, 45 for minutes)</td><td></td></tr>
+    <tr><td><code>0-30/5</code></td><td>step from a sub-range (0, 5, 10, 15, 20, 25, 30)</td><td></td></tr>
+  </tbody>
+</table>
+
+<h2>About</h2>
+<p>This validates standard 5-field POSIX cron syntax. It does not handle the <code>@reboot</code>/<code>@yearly</code>/etc. nicknames, the 6-field seconds variant used by Quartz and some Go libraries, or the <code>L</code>/<code>W</code>/<code>#</code> extensions used by Quartz. Day-of-month and day-of-week follow the Vixie cron rule: if both are restricted (not <code>*</code>), a match on either field triggers the job.</p>
+<p>Next-fire times are calculated minute-by-minute in UTC, capped at one year of lookahead. The horizon cap exists so impossible expressions like <code>0 0 30 2 *</code> (the 30th of February) terminate cleanly instead of looping.</p>
+<p>Source: <a href="https://github.com/truffle-dev/tool-cron">github.com/truffle-dev/tool-cron</a>. MIT.</p>
+
+<footer class="colophon">
+  <span><a href="https://truffle.ghostwright.dev/">truffle.ghostwright.dev</a></span>
+  <span>MIT &middot; <a href="https://github.com/truffle-dev/tool-cron">source</a></span>
+</footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  var DOWS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  var DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  var FIELDS = [
+    { name: "minute",       min: 0, max: 59, names: null },
+    { name: "hour",         min: 0, max: 23, names: null },
+    { name: "day-of-month", min: 1, max: 31, names: null },
+    { name: "month",        min: 1, max: 12, names: MONTHS },
+    { name: "day-of-week",  min: 0, max: 6,  names: DOWS },
+  ];
+
+  function parseToken(tok, field) {
+    var min = field.min;
+    var max = field.max;
+    var step = 1;
+    var rangePart = tok;
+    var slashIdx = tok.indexOf("/");
+    if (slashIdx !== -1) {
+      rangePart = tok.slice(0, slashIdx);
+      var stepStr = tok.slice(slashIdx + 1);
+      if (!/^\d+$/.test(stepStr)) {
+        throw new Error("invalid step in '" + tok + "'");
+      }
+      step = parseInt(stepStr, 10);
+      if (step < 1) throw new Error("step must be >= 1 in '" + tok + "'");
+    }
+
+    var rangeMin, rangeMax;
+    if (rangePart === "*") {
+      rangeMin = min;
+      rangeMax = max;
+    } else {
+      var dashIdx = rangePart.indexOf("-");
+      if (dashIdx !== -1) {
+        rangeMin = resolveName(rangePart.slice(0, dashIdx), field);
+        rangeMax = resolveName(rangePart.slice(dashIdx + 1), field);
+        if (rangeMin === null || rangeMax === null) {
+          throw new Error("invalid range in '" + tok + "'");
+        }
+        if (rangeMin > rangeMax) {
+          throw new Error("range start > end in '" + tok + "'");
+        }
+      } else {
+        rangeMin = rangeMax = resolveName(rangePart, field);
+        if (rangeMin === null) {
+          throw new Error("invalid value '" + rangePart + "' in " + field.name);
+        }
+      }
+    }
+
+    if (rangeMin < min || rangeMax > max) {
+      throw new Error(field.name + " value out of range (" + min + "-" + max + "): '" + tok + "'");
+    }
+
+    var values = [];
+    for (var v = rangeMin; v <= rangeMax; v += step) {
+      values.push(v);
+    }
+    return values;
+  }
+
+  function resolveName(raw, field) {
+    raw = (raw || "").trim().toUpperCase();
+    if (raw === "") return null;
+    if (/^\d+$/.test(raw)) {
+      return parseInt(raw, 10);
+    }
+    if (field.names) {
+      var idx = field.names.indexOf(raw);
+      if (idx !== -1) return idx + field.min;
+    }
+    return null;
+  }
+
+  function parseField(raw, field) {
+    raw = raw.trim();
+    if (raw === "") throw new Error("empty " + field.name + " field");
+    var tokens = raw.split(",");
+    var values = {};
+    for (var i = 0; i < tokens.length; i++) {
+      var tok = tokens[i].trim();
+      if (tok === "") throw new Error("empty token in " + field.name);
+      var parsed = parseToken(tok, field);
+      for (var j = 0; j < parsed.length; j++) {
+        values[parsed[j]] = true;
+      }
+    }
+    var out = [];
+    for (var k in values) {
+      if (values.hasOwnProperty(k)) out.push(parseInt(k, 10));
+    }
+    out.sort(function (a, b) { return a - b; });
+    return { values: out, raw: raw };
+  }
+
+  function parseCron(expr) {
+    if (typeof expr !== "string") throw new Error("expression must be a string");
+    var parts = expr.trim().split(/\s+/);
+    if (parts.length !== 5) {
+      throw new Error("expected 5 space-separated fields, got " + parts.length);
+    }
+    var fields = [];
+    for (var i = 0; i < 5; i++) {
+      var f = FIELDS[i];
+      var raw = parts[i];
+      if (i === 4 && raw === "7") raw = "0";
+      if (i === 4 && /^\d+$/.test(raw.trim()) === false) {
+        raw = raw.replace(/7/g, function (match, offset, str) {
+          var before = str.charAt(offset - 1);
+          var after = str.charAt(offset + 1);
+          if ((before >= "0" && before <= "9") || (after >= "0" && after <= "9")) return match;
+          return "0";
+        });
+      }
+      fields.push(parseField(raw, f));
+    }
+    return {
+      minute: fields[0],
+      hour: fields[1],
+      dom: fields[2],
+      month: fields[3],
+      dow: fields[4],
+      raw: parts.join(" "),
+    };
+  }
+
+  function describeField(field, fieldDef, every) {
+    var vals = field.values;
+    var full = (vals.length === (fieldDef.max - fieldDef.min + 1));
+    if (full) return every;
+    if (vals.length === 1) {
+      if (fieldDef.names) {
+        return fieldDef === FIELDS[3] ? MONTH_NAMES[vals[0] - 1] : DOW_NAMES[vals[0]];
+      }
+      return String(vals[0]);
+    }
+    if (isStep(vals, fieldDef)) {
+      var step = vals[1] - vals[0];
+      return "every " + step + (fieldDef.name === "minute" ? " minutes" : fieldDef.name === "hour" ? " hours" : " " + fieldDef.name + "s");
+    }
+    if (isRange(vals)) {
+      if (fieldDef.names) {
+        var nameArr = fieldDef === FIELDS[3] ? MONTH_NAMES : DOW_NAMES;
+        return nameArr[vals[0] - fieldDef.min] + "–" + nameArr[vals[vals.length - 1] - fieldDef.min];
+      }
+      return vals[0] + "–" + vals[vals.length - 1];
+    }
+    return vals.join(", ");
+  }
+
+  function isStep(vals, fieldDef) {
+    if (vals.length < 2) return false;
+    var step = vals[1] - vals[0];
+    if (step < 2) return false;
+    for (var i = 2; i < vals.length; i++) {
+      if (vals[i] - vals[i - 1] !== step) return false;
+    }
+    return vals[0] === fieldDef.min || vals[0] === 0;
+  }
+
+  function isRange(vals) {
+    for (var i = 1; i < vals.length; i++) {
+      if (vals[i] !== vals[i - 1] + 1) return false;
+    }
+    return vals.length > 2;
+  }
+
+  function describeCron(c) {
+    var minVals = c.minute.values;
+    var hrVals = c.hour.values;
+    var domVals = c.dom.values;
+    var monVals = c.month.values;
+    var dowVals = c.dow.values;
+
+    var minFull = minVals.length === 60;
+    var hrFull = hrVals.length === 24;
+    var domFull = domVals.length === 31;
+    var monFull = monVals.length === 12;
+    var dowFull = dowVals.length === 7;
+
+    var timeStr;
+    if (minFull && hrFull) {
+      timeStr = "every minute";
+    } else if (hrFull && minVals.length === 1) {
+      timeStr = "every hour at minute " + pad2(minVals[0]);
+    } else if (hrFull && isStep(minVals, FIELDS[0])) {
+      timeStr = "every " + (minVals[1] - minVals[0]) + " minutes";
+    } else if (minVals.length === 1 && hrVals.length === 1) {
+      timeStr = "at " + pad2(hrVals[0]) + ":" + pad2(minVals[0]);
+    } else if (minFull) {
+      timeStr = "every minute during hour " + describeField(c.hour, FIELDS[1], "");
+    } else {
+      timeStr = "minute " + describeField(c.minute, FIELDS[0], "every minute") + ", hour " + describeField(c.hour, FIELDS[1], "every hour");
+    }
+
+    var dayParts = [];
+    if (!dowFull) {
+      var dowDesc = describeField(c.dow, FIELDS[4], "every day");
+      dayParts.push("on " + dowDesc);
+    }
+    if (!domFull) {
+      dayParts.push("on day-of-month " + describeField(c.dom, FIELDS[2], "any"));
+    }
+    if (!monFull) {
+      dayParts.push("in " + describeField(c.month, FIELDS[3], "every month"));
+    }
+
+    var sentence = capitalize(timeStr);
+    if (dayParts.length > 0) {
+      var joiner = (dayParts.length > 1 && !dowFull && !domFull) ? " or " : ", ";
+      sentence += " " + dayParts.join(joiner);
+    }
+    sentence += " UTC.";
+    return sentence;
+  }
+
+  function pad2(n) { return n < 10 ? "0" + n : String(n); }
+  function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+  function matches(c, d) {
+    var dom = d.getUTCDate();
+    var dow = d.getUTCDay();
+    var monthOk = c.month.values.indexOf(d.getUTCMonth() + 1) !== -1;
+    if (!monthOk) return false;
+    var hourOk = c.hour.values.indexOf(d.getUTCHours()) !== -1;
+    if (!hourOk) return false;
+    var minOk = c.minute.values.indexOf(d.getUTCMinutes()) !== -1;
+    if (!minOk) return false;
+
+    var domFull = c.dom.values.length === 31;
+    var dowFull = c.dow.values.length === 7;
+    var domOk = c.dom.values.indexOf(dom) !== -1;
+    var dowOk = c.dow.values.indexOf(dow) !== -1;
+    if (domFull && dowFull) return true;
+    if (domFull) return dowOk;
+    if (dowFull) return domOk;
+    return domOk || dowOk;
+  }
+
+  function nextFires(c, from, count) {
+    var fires = [];
+    var d = new Date(from.getTime());
+    d.setUTCSeconds(0, 0);
+    d.setUTCMinutes(d.getUTCMinutes() + 1);
+    var maxIter = 60 * 24 * 366;
+    while (fires.length < count && maxIter > 0) {
+      if (matches(c, d)) {
+        fires.push(new Date(d.getTime()));
+      }
+      d.setUTCMinutes(d.getUTCMinutes() + 1);
+      maxIter--;
+    }
+    return fires;
+  }
+
+  function formatIso(d) {
+    return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate()) + "T" + pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes()) + "Z";
+  }
+
+  function relative(d, from) {
+    var diff = (d.getTime() - from.getTime()) / 1000;
+    var abs = Math.abs(diff);
+    var sign = diff < 0 ? "ago" : "from now";
+    if (abs < 60) return Math.round(abs) + "s " + sign;
+    if (abs < 3600) return Math.round(abs / 60) + "m " + sign;
+    if (abs < 86400) return Math.round(abs / 3600 * 10) / 10 + "h " + sign;
+    if (abs < 86400 * 30) return Math.round(abs / 86400 * 10) / 10 + "d " + sign;
+    return Math.round(abs / 86400) + "d " + sign;
+  }
+
+  var input = document.getElementById("expr");
+  var statusEl = document.getElementById("status");
+  var summaryEl = document.getElementById("summary");
+  var errorBox = document.getElementById("errorBox");
+  var fieldsBody = document.getElementById("fieldsBody");
+  var firesEl = document.getElementById("fires");
+  var tzEl = document.getElementById("tz");
+
+  try {
+    tzEl.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || "(unknown)";
+  } catch (_) {
+    tzEl.textContent = "(unknown)";
+  }
+
+  function render() {
+    var raw = input.value;
+    writeHash(raw);
+    var parsed;
+    try {
+      parsed = parseCron(raw);
+    } catch (err) {
+      input.classList.add("invalid");
+      statusEl.className = "status over";
+      statusEl.textContent = "invalid";
+      summaryEl.textContent = "";
+      errorBox.hidden = false;
+      errorBox.innerHTML = '<div class="error-detail">' + escapeHtml(err.message) + "</div>";
+      fieldsBody.innerHTML = "";
+      firesEl.innerHTML = "";
+      return;
+    }
+    input.classList.remove("invalid");
+    statusEl.className = "status ok";
+    statusEl.textContent = "valid";
+    errorBox.hidden = true;
+    errorBox.innerHTML = "";
+    summaryEl.textContent = describeCron(parsed);
+
+    var rows = "";
+    var fieldsArr = [parsed.minute, parsed.hour, parsed.dom, parsed.month, parsed.dow];
+    for (var i = 0; i < 5; i++) {
+      var meaning = describeField(fieldsArr[i], FIELDS[i], everyLabel(FIELDS[i]));
+      rows += "<tr><td class='field-name'>" + FIELDS[i].name + "</td><td class='field-raw'>" + escapeHtml(fieldsArr[i].raw) + "</td><td class='field-meaning'>" + escapeHtml(meaning) + "</td></tr>";
+    }
+    fieldsBody.innerHTML = rows;
+
+    var now = new Date();
+    var fires = nextFires(parsed, now, 5);
+    var lis = "";
+    if (fires.length === 0) {
+      lis = '<li><span class="idx"></span><span class="iso">no fires within one year</span></li>';
+    } else {
+      for (var k = 0; k < fires.length; k++) {
+        lis += "<li><span class='idx'>" + (k + 1) + "</span><span class='iso'>" + formatIso(fires[k]) + "<span class='rel'>" + relative(fires[k], now) + "</span></span></li>";
+      }
+    }
+    firesEl.innerHTML = lis;
+  }
+
+  function everyLabel(field) {
+    switch (field.name) {
+      case "minute": return "every minute";
+      case "hour": return "every hour";
+      case "day-of-month": return "every day";
+      case "month": return "every month";
+      case "day-of-week": return "every day of week";
+      default: return "*";
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function writeHash(expr) {
+    var hash = "#expr=" + encodeURIComponent(expr);
+    if (location.hash !== hash) {
+      history.replaceState(null, "", location.pathname + hash);
+    }
+  }
+
+  function readHash() {
+    var h = location.hash;
+    if (!h || h.length < 2) return null;
+    var params = new URLSearchParams(h.slice(1));
+    var v = params.get("expr");
+    return v;
+  }
+
+  var initial = readHash();
+  if (initial !== null) input.value = initial;
+
+  input.addEventListener("input", render);
+
+  var presetsEl = document.getElementById("presets");
+  presetsEl.addEventListener("click", function (ev) {
+    var btn = ev.target.closest("button[data-expr]");
+    if (!btn) return;
+    input.value = btn.dataset.expr;
+    input.focus();
+    render();
+  });
+
+  render();
+
+  setInterval(function () {
+    try {
+      var parsed = parseCron(input.value);
+      var now = new Date();
+      var fires = nextFires(parsed, now, 5);
+      var lis = "";
+      if (fires.length === 0) {
+        lis = '<li><span class="idx"></span><span class="iso">no fires within one year</span></li>';
+      } else {
+        for (var k = 0; k < fires.length; k++) {
+          lis += "<li><span class='idx'>" + (k + 1) + "</span><span class='iso'>" + formatIso(fires[k]) + "<span class='rel'>" + relative(fires[k], now) + "</span></span></li>";
+        }
+      }
+      firesEl.innerHTML = lis;
+    } catch (_) { }
+  }, 30000);
+})();
+</script>
+
+</body>
+</html>

@@ -250,11 +250,46 @@ ol.fires li .idx {
 ol.fires li .iso { color: var(--ink); }
 ol.fires li .rel { color: var(--quiet); font-size: 0.78rem; margin-left: 0.4rem; }
 
+.tz-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+  margin: 0.7rem 0 0;
+}
+.tz-toggle {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--paper-raised);
+}
+.tz-toggle button {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--quiet);
+  background: transparent;
+  border: 0;
+  padding: 0.28rem 0.72rem;
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+.tz-toggle button + button { border-left: 1px solid var(--rule); }
+.tz-toggle button[aria-pressed="true"] {
+  background: var(--code-bg);
+  color: var(--accent);
+}
+.tz-toggle button:hover { color: var(--accent); }
+.tz-toggle button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tz-toggle button[disabled] { cursor: not-allowed; opacity: 0.45; }
+
 .tz-note {
   font-family: var(--font-mono);
   font-size: 0.74rem;
   color: var(--quiet);
-  margin: 0.6rem 0 0;
+  margin: 0;
 }
 
 .presets {
@@ -391,7 +426,13 @@ footer.colophon a:hover { color: var(--accent); border-bottom-color: var(--accen
 
   <h2 style="margin-top: 1.6rem;">Next five fires</h2>
   <ol class="fires" id="fires"></ol>
-  <p class="tz-note" id="tzNote">UTC. Your local zone is <span id="tz">?</span>.</p>
+  <div class="tz-bar">
+    <div class="tz-toggle" id="tzToggle" role="group" aria-label="display zone">
+      <button type="button" data-tz="utc" aria-pressed="true">UTC</button>
+      <button type="button" data-tz="local" aria-pressed="false">local</button>
+    </div>
+    <span class="tz-note" id="tzNote">Times in UTC. Your local zone is (unknown).</span>
+  </div>
 </section>
 
 <h2>Field reference</h2>
@@ -714,13 +755,74 @@ footer.colophon a:hover { color: var(--accent); border-bottom-color: var(--accen
   var errorBox = document.getElementById("errorBox");
   var fieldsBody = document.getElementById("fieldsBody");
   var firesEl = document.getElementById("fires");
-  var tzEl = document.getElementById("tz");
+  var tzNoteEl = document.getElementById("tzNote");
+  var tzToggleEl = document.getElementById("tzToggle");
 
+  var displayTz = "utc";
+  var localZone = null;
+  var localFormatter = null;
   try {
-    tzEl.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || "(unknown)";
-  } catch (_) {
-    tzEl.textContent = "(unknown)";
+    localZone = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch (_) { localZone = null; }
+  try {
+    localFormatter = new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZoneName: "short",
+    });
+  } catch (_) { localFormatter = null; }
+
+  function formatLocal(d) {
+    if (!localFormatter) return formatIso(d);
+    var parts = localFormatter.formatToParts(d);
+    var bits = {};
+    for (var i = 0; i < parts.length; i++) {
+      bits[parts[i].type] = parts[i].value;
+    }
+    var hour = bits.hour === "24" ? "00" : bits.hour;
+    var zone = bits.timeZoneName ? " " + bits.timeZoneName : "";
+    return bits.year + "-" + bits.month + "-" + bits.day + "T" +
+      hour + ":" + bits.minute + zone;
   }
+
+  function formatFire(d) {
+    return displayTz === "local" ? formatLocal(d) : formatIso(d);
+  }
+
+  function updateTzNote() {
+    var zone = localZone || "(unknown)";
+    if (displayTz === "local") {
+      tzNoteEl.textContent = "Times shown in your local zone: " + zone + ".";
+    } else {
+      tzNoteEl.textContent = "Times in UTC. Your local zone is " + zone + ".";
+    }
+  }
+
+  function setDisplayTz(tz) {
+    displayTz = (tz === "local" && localFormatter) ? "local" : "utc";
+    var btns = tzToggleEl.querySelectorAll("button[data-tz]");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute("aria-pressed", btns[i].dataset.tz === displayTz ? "true" : "false");
+    }
+    updateTzNote();
+  }
+
+  if (!localFormatter) {
+    var localBtn = tzToggleEl.querySelector('button[data-tz="local"]');
+    if (localBtn) localBtn.setAttribute("disabled", "");
+  }
+
+  tzToggleEl.addEventListener("click", function (ev) {
+    var btn = ev.target.closest("button[data-tz]");
+    if (!btn || btn.hasAttribute("disabled")) return;
+    setDisplayTz(btn.dataset.tz);
+    writeHash(input.value);
+    render();
+  });
 
   function render() {
     var raw = input.value;
@@ -761,7 +863,7 @@ footer.colophon a:hover { color: var(--accent); border-bottom-color: var(--accen
       lis = '<li><span class="idx"></span><span class="iso">no fires within one year</span></li>';
     } else {
       for (var k = 0; k < fires.length; k++) {
-        lis += "<li><span class='idx'>" + (k + 1) + "</span><span class='iso'>" + formatIso(fires[k]) + "<span class='rel'>" + relative(fires[k], now) + "</span></span></li>";
+        lis += "<li><span class='idx'>" + (k + 1) + "</span><span class='iso'>" + escapeHtml(formatFire(fires[k])) + "<span class='rel'>" + relative(fires[k], now) + "</span></span></li>";
       }
     }
     firesEl.innerHTML = lis;
@@ -783,7 +885,9 @@ footer.colophon a:hover { color: var(--accent); border-bottom-color: var(--accen
   }
 
   function writeHash(expr) {
-    var hash = "#expr=" + encodeURIComponent(expr);
+    var parts = ["expr=" + encodeURIComponent(expr)];
+    if (displayTz === "local") parts.push("tz=local");
+    var hash = "#" + parts.join("&");
     if (location.hash !== hash) {
       history.replaceState(null, "", location.pathname + hash);
     }
@@ -791,14 +895,17 @@ footer.colophon a:hover { color: var(--accent); border-bottom-color: var(--accen
 
   function readHash() {
     var h = location.hash;
-    if (!h || h.length < 2) return null;
+    if (!h || h.length < 2) return { expr: null, tz: "utc" };
     var params = new URLSearchParams(h.slice(1));
-    var v = params.get("expr");
-    return v;
+    return {
+      expr: params.get("expr"),
+      tz: params.get("tz") === "local" ? "local" : "utc",
+    };
   }
 
   var initial = readHash();
-  if (initial !== null) input.value = initial;
+  if (initial.expr !== null) input.value = initial.expr;
+  setDisplayTz(initial.tz);
 
   input.addEventListener("input", render);
 
@@ -823,7 +930,7 @@ footer.colophon a:hover { color: var(--accent); border-bottom-color: var(--accen
         lis = '<li><span class="idx"></span><span class="iso">no fires within one year</span></li>';
       } else {
         for (var k = 0; k < fires.length; k++) {
-          lis += "<li><span class='idx'>" + (k + 1) + "</span><span class='iso'>" + formatIso(fires[k]) + "<span class='rel'>" + relative(fires[k], now) + "</span></span></li>";
+          lis += "<li><span class='idx'>" + (k + 1) + "</span><span class='iso'>" + escapeHtml(formatFire(fires[k])) + "<span class='rel'>" + relative(fires[k], now) + "</span></span></li>";
         }
       }
       firesEl.innerHTML = lis;

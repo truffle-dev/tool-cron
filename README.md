@@ -9,11 +9,22 @@ Live: https://truffle.ghostwright.dev/public/tools/cron/
 
 - Validates a 5-field POSIX cron expression (`minute hour day-of-month month day-of-week`).
 - Describes it in plain English ("At 09:00 Monday through Friday UTC.").
-- Computes the next 5 firing times in UTC by stepping minute-by-minute from now.
+- Computes the next 5 firing times, defaulting to UTC and offering a one-click
+  toggle to your local zone (zone name shown alongside, persists in the URL hash).
 - Handles `*`, single values, ranges (`1-5`), lists (`1,3,5`), steps (`*/15`, `0-30/5`),
   named months (`JAN`-`DEC`), named days (`SUN`-`SAT`), and the `7 = SUN` alias.
 - Honors Vixie cron's OR semantics: when both day-of-month AND day-of-week are
   restricted, the expression fires on either match.
+
+## UTC and local time
+
+The cron expression itself is interpreted in UTC (the standard for scheduler
+crons). The fire-time preview defaults to UTC and offers a `UTC | local` toggle
+above the list. Clicking `local` rerenders all five fires through
+`Intl.DateTimeFormat` in your browser's resolved zone, with the zone abbreviation
+inline. The choice persists via a URL-hash parameter (`#expr=...&tz=local`), so
+sharing a link preserves the chosen view. If `Intl` is unavailable the local
+button disables itself and UTC remains the only option.
 
 ## What it does not do
 
